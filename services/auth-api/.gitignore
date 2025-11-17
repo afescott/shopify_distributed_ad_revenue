@@ -1,0 +1,27 @@
+/target
+
+# Private keys and sensitive files
+keys.json
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
