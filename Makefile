@@ -28,13 +28,19 @@ clean: ## Clean build artifacts
 	cargo clean
 
 docker-up: ## Start Docker services (postgres, kafka)
-	docker-compose up -d postgres kafka zookeeper
+	./docker.sh up postgres kafka zookeeper
 
 docker-down: ## Stop Docker services
-	docker-compose down
+	./docker.sh down
 
 docker-logs: ## View Docker logs
-	docker-compose logs -f
+	./docker.sh logs -f
+
+docker-build: ## Build all services
+	./docker.sh build
+
+docker-restart: ## Restart all services
+	./docker.sh restart
 
 # Service-specific targets
 build-auth-api:

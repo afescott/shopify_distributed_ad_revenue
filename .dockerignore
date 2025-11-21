@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+
+# Rust
+**/target
+**/Cargo.lock
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Documentation
+*.md
+docs/
+
+# Logs
+*.log
+
+# Generated keys (don't copy these to images)
+**/keys.json
+**/public_keys.json
+
+# Docker files
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+.dockerignore
+
+# Scripts
+*.sh
+
+# GitHub
+.github
+
+# Other
+node_modules
+*.tmp
+
