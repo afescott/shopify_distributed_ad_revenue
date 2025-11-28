@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
 use axum::{response::Redirect, routing::get, Extension, Router};
@@ -10,6 +11,7 @@ use crate::auth::jkws::AuthService;
 use crate::Args;
 
 mod auth;
+mod cost;
 mod inventory;
 mod orders;
 mod products;
@@ -23,6 +25,8 @@ pub struct ApiContext {
     pub config: Arc<Args>,
     pub db: PgPool,
     pub auth_service: Arc<AuthService>,
+
+    pub cost_calculation_vals: Arc<Mutex<HashMap<String, f64>>>,
 }
 
 pub async fn serve(config: Args, db: PgPool) -> anyhow::Result<()> {
@@ -35,6 +39,7 @@ pub async fn serve(config: Args, db: PgPool) -> anyhow::Result<()> {
             config: Arc::new(config),
             db,
             auth_service: auth_service.clone(),
+            cost_calculation_vals: Arc::new(Mutex::new(HashMap::new())),
         }))
         // Enable CORS for cross-origin requests (needed for Swagger UI)
         .layer(
@@ -78,6 +83,7 @@ fn api_router() -> Router {
                 .merge(inventory::inventory_router())
                 .merge(orders::orders_router())
                 .merge(products::products_router())
-                .merge(users::users_router()),
+                .merge(users::users_router())
+                .merge(cost::cost_router()),
         )
 }

@@ -1,3 +1,2 @@
-mod producer;
-
-pub use producer::create_producer;
+pub mod consumer;
+pub mod producer;

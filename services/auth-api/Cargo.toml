@@ -31,4 +31,6 @@ thiserror = "1.0"
 regex = "1.10"
 rust_decimal = { version = "1.39", features = ["serde"] }
 lib_shopify = { path = "../../libs/lib-shopify" }
+futures-util = "0.3"
+tracing = "0.1"
 
