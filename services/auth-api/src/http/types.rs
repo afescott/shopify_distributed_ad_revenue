@@ -60,6 +60,27 @@ impl IntoResponse for AppError {
 pub type AppResult<T> = Result<Json<T>, AppError>;
 
 #[derive(Serialize, Deserialize, Clone, sqlx::FromRow)]
+pub struct Merchant {
+    pub id: Uuid,
+    pub shop_domain: String,
+    pub shop_name: Option<String>,
+    pub shop_currency: Option<String>,
+    pub timezone: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Deserialize)]
+pub struct CreateMerchantRequest {
+    pub id: Option<Uuid>, // Optional, will generate if not provided
+    pub shop_domain: String,
+    pub shop_name: Option<String>,
+    pub shop_currency: Option<String>,
+    pub timezone: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct Product {
     pub id: Uuid,
     pub merchant_id: Uuid,

@@ -9,9 +9,62 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
+/// Create an order (can be used by HTTP handlers and tests)
+pub async fn create_order(
+    db: &sqlx::PgPool,
+    payload: CreateOrderRequest,
+) -> Result<Order, AppError> {
+    // Check if order already exists
+    let existing = sqlx::query_scalar::<_, Option<i64>>(
+        r#"
+        SELECT id FROM orders 
+        WHERE merchant_id = $1 AND shopify_order_id = $2
+        "#,
+    )
+    .bind(payload.merchant_id)
+    .bind(payload.shopify_order_id)
+    .fetch_optional(db)
+    .await?;
+
+    if existing.is_some() {
+        return Err(AppError::Validation("Order already exists".to_string()));
+    }
+
+    // Insert order
+    let order = sqlx::query_as::<_, Order>(
+        r#"
+        INSERT INTO orders (
+            merchant_id, shopify_order_id, name, processed_at, currency,
+            subtotal_price, total_price, total_discounts, 
+            total_shipping_price_set_amount, total_tax, financial_status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id, merchant_id, shopify_order_id, name, processed_at, currency,
+                  subtotal_price, total_price, total_discounts, 
+                  total_shipping_price_set_amount, total_tax, financial_status,
+                  cancelled_at, created_at, updated_at
+        "#,
+    )
+    .bind(payload.merchant_id)
+    .bind(payload.shopify_order_id)
+    .bind(payload.name)
+    .bind(payload.processed_at)
+    .bind(payload.currency)
+    .bind(payload.subtotal_price)
+    .bind(payload.total_price)
+    .bind(payload.total_discounts)
+    .bind(payload.total_shipping_price_set_amount)
+    .bind(payload.total_tax)
+    .bind(payload.financial_status)
+    .fetch_one(db)
+    .await?;
+
+    Ok(order)
+}
+
 pub fn orders_router() -> Router {
     Router::new()
-        .route("/orders", get(list_orders).post(create_order))
+        .route("/orders", get(list_orders).post(create_order_handler))
         .route(
             "/orders/:id",
             get(get_order).put(update_order).delete(delete_order),
@@ -119,7 +172,7 @@ async fn get_order(Extension(ctx): Extension<ApiContext>, Path(id): Path<i64>) -
     Ok(Json(order))
 }
 
-async fn create_order(
+async fn create_order_handler(
     Extension(ctx): Extension<ApiContext>,
     Json(payload): Json<CreateOrderRequest>,
 ) -> AppResult<Order> {
@@ -128,52 +181,7 @@ async fn create_order(
         payload.merchant_id, payload.shopify_order_id, payload.name
     );
 
-    // Check if order already exists
-    let existing = sqlx::query_scalar::<_, Option<i64>>(
-        r#"
-        SELECT id FROM orders 
-        WHERE merchant_id = $1 AND shopify_order_id = $2
-        "#,
-    )
-    .bind(payload.merchant_id)
-    .bind(payload.shopify_order_id)
-    .fetch_optional(&ctx.db)
-    .await?;
-
-    eprintln!("Order existence check: {:?}", existing);
-
-    if existing.is_some() {
-        return Err(AppError::Validation("Order already exists".to_string()));
-    }
-
-    eprintln!("Inserting order into database...");
-    let order = sqlx::query_as::<_, Order>(
-        r#"
-        INSERT INTO orders (
-            merchant_id, shopify_order_id, name, processed_at, currency,
-            subtotal_price, total_price, total_discounts, 
-            total_shipping_price_set_amount, total_tax, financial_status
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING id, merchant_id, shopify_order_id, name, processed_at, currency,
-                  subtotal_price, total_price, total_discounts, 
-                  total_shipping_price_set_amount, total_tax, financial_status,
-                  cancelled_at, created_at, updated_at
-        "#,
-    )
-    .bind(payload.merchant_id)
-    .bind(payload.shopify_order_id)
-    .bind(payload.name)
-    .bind(payload.processed_at)
-    .bind(payload.currency)
-    .bind(payload.subtotal_price)
-    .bind(payload.total_price)
-    .bind(payload.total_discounts)
-    .bind(payload.total_shipping_price_set_amount)
-    .bind(payload.total_tax)
-    .bind(payload.financial_status)
-    .fetch_one(&ctx.db)
-    .await?;
+    let order = create_order(&ctx.db, payload).await?;
 
     eprintln!("Order created successfully: id={}", order.id);
     Ok(Json(order))

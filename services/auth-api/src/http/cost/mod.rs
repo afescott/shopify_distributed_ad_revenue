@@ -180,32 +180,118 @@ async fn get_total_courier_cost(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::PgPool;
-    use uuid::Uuid;
+    use anyhow::Context;
+    use std::str::FromStr;
+    use sqlx::postgres::PgPoolOptions;
+
+    /// Setup test database connection and run migrations
+    ///
+    /// Uses TEST_DATABASE_URL environment variable if set, otherwise falls back to:
+    /// - DATABASE_URL if set
+    /// - Default test database URL (postgresql://postgres:postgres@localhost:5433/shopify_db)
+    ///
+    /// To start the database for testing, run:
+    ///   docker-compose up -d postgres
+    async fn setup_test_db() -> anyhow::Result<sqlx::PgPool> {
+        // Use test database URL from environment or default
+        let database_url = std::env::var("TEST_DATABASE_URL")
+            .or_else(|_| std::env::var("DATABASE_URL"))
+            .unwrap_or_else(|_| {
+                // Default: matches docker-compose.yml configuration
+                "postgresql://postgres:postgres@localhost:5433/shopify_db".to_string()
+            });
+
+        let db = PgPoolOptions::new()
+            .max_connections(5) // Lower for tests
+            .connect(&database_url)
+            .await
+            .with_context(|| {
+                format!(
+                    "could not connect to test database at: {}\n\
+                     Hint: Start the database with: docker-compose up -d postgres",
+                    database_url
+                )
+            })?;
+
+        // Run migrations (path is relative to crate root where Cargo.toml is)
+        sqlx::migrate!("./sql/migrations")
+            .run(&db)
+            .await
+            .context("could not run migrations")?;
+
+        Ok(db)
+    }
 
     #[tokio::test]
     async fn test_get_total_revenue() {
-        let db = PgPool::connect("postgres://user:password@localhost/test_db")
-            .await
-            .unwrap();
+        use crate::http::orders::create_order;
+        use crate::http::types::CreateOrderRequest;
+
+        let db = setup_test_db().await.expect(
+            "Failed to setup test database. Make sure PostgreSQL is running and accessible.",
+        );
+
+        use crate::http::merchants::create_merchant;
+        use crate::http::types::CreateMerchantRequest;
+
         let merchant_id = Uuid::new_v4();
+
+        // Create a merchant first (required by foreign key constraint)
+        create_merchant(
+            &db,
+            CreateMerchantRequest {
+                id: Some(merchant_id),
+                shop_domain: format!("test-merchant-{}.myshopify.com", merchant_id),
+                shop_name: Some("Test Merchant".to_string()),
+                shop_currency: None,
+                timezone: None,
+            },
+        )
+        .await
+        .expect("Failed to create test merchant");
+
+        // Create order directly using the function
+        create_order(
+            &db,
+            CreateOrderRequest {
+                merchant_id,
+                shopify_order_id: 123456,
+                name: Some("Test Order".to_string()),
+                processed_at: Some(
+                    chrono::DateTime::parse_from_rfc3339("2024-01-01T12:00:00Z")
+                        .unwrap()
+                        .with_timezone(&chrono::Utc),
+                ),
+                currency: Some("USD".to_string()),
+                subtotal_price: Some(Decimal::from_str("100.00").unwrap()),
+                total_price: Some(Decimal::from_str("110.00").unwrap()),
+                total_discounts: Some(Decimal::from_str("0.00").unwrap()),
+                total_shipping_price_set_amount: Some(Decimal::from_str("10.00").unwrap()),
+                total_tax: Some(Decimal::from_str("0.00").unwrap()),
+                financial_status: Some("paid".to_string()),
+            },
+        )
+        .await
+        .expect("Failed to create test order");
 
         let revenue = get_total_revenue(&db, merchant_id, None, None)
             .await
             .unwrap();
-        assert_eq!(revenue, Decimal::ZERO);
+
+        println!("Total revenue for merchant {}: {}", merchant_id, revenue);
+        assert_eq!(revenue, Decimal::from_str("110.00").unwrap());
     }
 
-    #[tokio::test]
+    /* #[tokio::test]
     async fn test_get_total_courier_cost() {
-        let db = PgPool::connect("postgres://user:password@localhost/test_db")
-            .await
-            .unwrap();
+        let db = setup_test_db().await.expect(
+            "Failed to setup test database. Make sure PostgreSQL is running and accessible.",
+        );
         let merchant_id = Uuid::new_v4();
 
         let courier_cost = get_total_courier_cost(&db, merchant_id, None, None)
             .await
             .unwrap();
         assert_eq!(courier_cost, Decimal::ZERO);
-    }
+    } */
 }

@@ -13,6 +13,7 @@ use crate::Args;
 mod auth;
 mod cost;
 mod inventory;
+mod merchants;
 mod orders;
 mod products;
 mod types;
@@ -81,6 +82,7 @@ fn api_router() -> Router {
             Router::new()
                 .merge(auth::auth_router())
                 .merge(inventory::inventory_router())
+                .merge(merchants::merchants_router())
                 .merge(orders::orders_router())
                 .merge(products::products_router())
                 .merge(users::users_router())
