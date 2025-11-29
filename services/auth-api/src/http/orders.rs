@@ -5,6 +5,9 @@ use axum::{
     routing::get,
     Extension, Json, Router,
 };
+use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
+use uuid::Uuid;
 
 pub fn orders_router() -> Router {
     Router::new()
@@ -83,10 +86,7 @@ async fn list_orders(
     }))
 }
 
-async fn get_order(
-    Extension(ctx): Extension<ApiContext>,
-    Path(id): Path<i64>,
-) -> AppResult<Order> {
+async fn get_order(Extension(ctx): Extension<ApiContext>, Path(id): Path<i64>) -> AppResult<Order> {
     eprintln!("Getting order: id={}", id);
 
     let order = sqlx::query_as::<_, Order>(
