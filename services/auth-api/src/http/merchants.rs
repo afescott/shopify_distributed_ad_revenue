@@ -128,3 +128,4 @@ async fn delete_merchant_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
+

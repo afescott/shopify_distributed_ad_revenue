@@ -181,8 +181,8 @@ async fn get_total_courier_cost(
 mod tests {
     use super::*;
     use anyhow::Context;
-    use std::str::FromStr;
     use sqlx::postgres::PgPoolOptions;
+    use std::str::FromStr;
 
     /// Setup test database connection and run migrations
     ///
@@ -282,16 +282,61 @@ mod tests {
         assert_eq!(revenue, Decimal::from_str("110.00").unwrap());
     }
 
-    /* #[tokio::test]
+    #[tokio::test]
     async fn test_get_total_courier_cost() {
+        use crate::http::merchants::create_merchant;
+        use crate::http::orders::create_order;
+        use crate::http::types::{CreateMerchantRequest, CreateOrderRequest};
+
         let db = setup_test_db().await.expect(
             "Failed to setup test database. Make sure PostgreSQL is running and accessible.",
         );
+
         let merchant_id = Uuid::new_v4();
+
+        // Create a merchant first (required by foreign key constraint)
+        create_merchant(
+            &db,
+            CreateMerchantRequest {
+                id: Some(merchant_id),
+                shop_domain: format!("test-merchant-{}.myshopify.com", merchant_id),
+                shop_name: Some("Test Merchant".to_string()),
+                shop_currency: None,
+                timezone: None,
+            },
+        )
+        .await
+        .expect("Failed to create test merchant");
+
+        // Create order with courier cost
+        create_order(
+            &db,
+            CreateOrderRequest {
+                merchant_id,
+                shopify_order_id: 789012,
+                name: Some("Test Order with Shipping".to_string()),
+                processed_at: Some(
+                    chrono::DateTime::parse_from_rfc3339("2024-01-01T12:00:00Z")
+                        .unwrap()
+                        .with_timezone(&chrono::Utc),
+                ),
+                currency: Some("USD".to_string()),
+                subtotal_price: Some(Decimal::from_str("100.00").unwrap()),
+                total_price: Some(Decimal::from_str("120.00").unwrap()),
+                total_discounts: Some(Decimal::from_str("0.00").unwrap()),
+                total_shipping_price_set_amount: Some(Decimal::from_str("20.00").unwrap()),
+                total_tax: Some(Decimal::from_str("0.00").unwrap()),
+                financial_status: Some("paid".to_string()),
+            },
+        )
+        .await
+        .expect("Failed to create test order");
 
         let courier_cost = get_total_courier_cost(&db, merchant_id, None, None)
             .await
             .unwrap();
-        assert_eq!(courier_cost, Decimal::ZERO);
-    } */
+
+        println!("Total courier cost for merchant {}: {}", merchant_id, courier_cost);
+        assert_eq!(courier_cost, Decimal::from_str("20.00").unwrap());
+    }
 }
